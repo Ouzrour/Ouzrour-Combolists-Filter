@@ -36,6 +36,8 @@ import random
 # for pause time
 import time
 
+from multiprocessing import set_start_method, Pool
+
 
 # ===============================
 # String Manipulation
@@ -126,7 +128,7 @@ def move_the_files(list_of_files, relative_source_folder, relative_destination_f
     """
     # For Loop in the list of names
     for file in list_of_files:
-        try :
+        try:
             # The Absolute path of the file ( source + file )
             source = absolute_and_join(relative_source_folder, file)
             # The Absolute path of the file after the move ( destination + file )
@@ -155,6 +157,11 @@ def move_the_files(list_of_files, relative_source_folder, relative_destination_f
             print("ERROR IN move_the_files function")
 
 
+def pool_function(funct , list_data):
+    p = Pool(6)
+    p.map(funct, list_data)
+
+
 def extract_mail_from_list_csv(relative_folder_of_csv, relative_destination_folder):
     """
     extract mails from a combo list of csv ( the list exist in the folder of the first parameter )
@@ -168,7 +175,7 @@ def extract_mail_from_list_csv(relative_folder_of_csv, relative_destination_fold
     list_of_files_csv = endWith(folder, '.csv')
     # loop into the list of the names ( of the files ) that end with ".csv" in the folder relative_folder_of_csv
     for file in list_of_files_csv:
-        try :
+        try:
             # read every file
             with open(absolute_and_join(relative_folder_of_csv, file), 'r', encoding="utf8") as read_obj:
                 # a csv function that convert a csv file to a list of lines
@@ -197,7 +204,7 @@ def extract_mail_from_list_csv(relative_folder_of_csv, relative_destination_fold
                     # extract the ISP : it begins from the arobase to the character ":" ( without including the 2 of them )
                     Isp = row[0][arobase + 1:double_dots]
                     # a list of all characters that are forbidden to be included in a folder name ( in Windows as I know )
-                    b = "*/\\|#%<>$+%!`&*'|{ }?=:"
+                    b = "*/\\|#%<>$+%!`&*'|{ _}?=:"
                     # remove these characters from ISP and Mail if they exist
                     for char in b:
                         # replace any of these character if founded in ISP with a void string
@@ -205,35 +212,39 @@ def extract_mail_from_list_csv(relative_folder_of_csv, relative_destination_fold
                         # replace any of these character if founded in the mail with a void string
                         Mail = Mail.replace(char, "")
                     # 2 cases :
-                    # Case 1 : if the file : relative_destination_folder+ISP+".csv" doesn't exist , it gonna be created
-                    if not os.path.exists(absolute_and_join(relative_destination_folder, Isp + '.csv')):
-                        # we gonna create the new file with a specific name : ISP.csv ( for example : gmail.csv
-                        # , yahoo.csv ... )
-                        with open(relative_destination_folder + Isp + '.csv', 'w', newline='', encoding="utf8") as out_file:
-                            # use the function writer of the csv library to easily change
-                            # the content of the CSV file
-                            writer = csv.writer(out_file)
-                            # we must write a row ( a row = a list , that why we must
-                            # transform the mail from string to list )
-                            writer.writerow([Mail])
-                            # Notification to be sure that all things are good
-                            print("=> Creation : \n" + Mail)
-                    # Case 2 : if the file : relative_destination_folder+ISP+".csv" exist . in this case , we don't need to
-                    # the write MOD , we need just to append the ".csv" file
-                    else:
-                        # open the file in APPEND MOD and not the Write MOD
-                        with open(relative_destination_folder + Isp + '.csv', 'a', newline='', encoding="utf8") as out_file:
-                            # use the function writer of the csv library to easily change
-                            # the content of the CSV file
-                            writer = csv.writer(out_file)
-                            # we must write a row ( a row = a list , that why we must
-                            # transform the mail from string to list )
-                            writer.writerow([Mail])
-                            print("=> Append : " + Mail)
+                    if (len(Isp)<14):
+                        # Case 1 : if the file : relative_destination_folder+ISP+".csv" doesn't exist , it gonna be created
+                        if not os.path.exists(absolute_and_join(relative_destination_folder, Isp + '.csv')):
+                            # we gonna create the new file with a specific name : ISP.csv ( for example : gmail.csv
+                            # , yahoo.csv ... )
+                            with open(relative_destination_folder + Isp + '.csv', 'w', newline='',
+                                      encoding="utf8") as out_file:
+                                # use the function writer of the csv library to easily change
+                                # the content of the CSV file
+                                writer = csv.writer(out_file)
+                                # we must write a row ( a row = a list , that why we must
+                                # transform the mail from string to list )
+                                writer.writerow([Mail])
+                                # Notification to be sure that all things are good
+                                print("=> Creation : \n" + Mail)
+                        # Case 2 : if the file : relative_destination_folder+ISP+".csv" exist . in this case , we don't need to
+                        # the write MOD , we need just to append the ".csv" file
+                        else:
+                            # open the file in APPEND MOD and not the Write MOD
+                            with open(relative_destination_folder + Isp + '.csv', 'a', newline='',
+                                      encoding="utf8") as out_file:
+                                # use the function writer of the csv library to easily change
+                                # the content of the CSV file
+                                writer = csv.writer(out_file)
+                                # we must write a row ( a row = a list , that why we must
+                                # transform the mail from string to list )
+                                writer.writerow([Mail])
+                                print("=> Append : " + Mail)
             # Remove the file after Using it to avoid the duplication ( if you re-run the program )
             os.remove(absolute_and_join(relative_folder_of_csv, file))
         except:
             print("ERROR IN extract_mail_from_list_csv function")
+
 
 # ===============================
 # Decoration
@@ -274,7 +285,23 @@ def end_of_step(text):
 # Cleaner
 # ===============================
 
-def clean_mail(output_directory: str = "output"):
+def clean_mail_true(part):
+    for file in part[0]:
+        RegexForFiltringDATA = re.compile(r'(^\w+)+\.+(\w+)+\.csv')
+        # if a file doesn't have the shape of a normal ISP ( String.String.csv ) , then :
+        if (not (RegexForFiltringDATA.search(file) == None or re.search('_', file) == None)):
+            try:
+                # delete It
+                os.remove(absolute_and_join(part[1], file))
+                # print that it is deleted
+                print('Removed with Regex : ' + file)
+            except:
+                pass
+        else:
+            print("Good : ", file)
+
+
+def clean_mail(output_directory: str = "Output"):
     """
     clean all dumps ISPs
     :param output_directory: the directory that contain the csv files that
@@ -284,20 +311,16 @@ def clean_mail(output_directory: str = "output"):
     """
     # the correct shape of an ISP ( gmail.com.csv = correct // gmail.csv = incorrect  )
     # the shape = String1.String2.csv
-    RegexForFiltringDATA = re.compile(r'(^\w+)+\.+(\w+)+\.csv')
     # list the names of all files in the output directory
     list_output_directory = os.listdir(output_directory)
     # loop mod into this list
-    for file in list_output_directory:
-        try:
-            # if a file doesn't have the shape of a normal ISP ( String.String.csv ) , then :
-            if (not (RegexForFiltringDATA.search(file) == None or re.search('_', file) == None)):
-                # delete It
-                os.remove(absolute_and_join(output_directory, file))
-                # print that it is deleted
-                print('Removed with Regex : ' + file)
-        except:
-            print("ERROR IN clean_mail function")
+    print(len(list_output_directory))
+    chunkse = [list_output_directory[x:x + 100] for x in range(0, len(list_output_directory), 100)]
+    part=[]
+    for s in range(len(chunkse)):
+        part.append([chunkse[s], output_directory])
+    pool_function(clean_mail_true, part)
+
 
 # ===============================
 # Organize By Country
@@ -393,7 +416,17 @@ def organize_by_country(Database_directory, Country_directory):
 # ===============================
 # Delete The Remained CSV in the database directory
 # ===============================
-
+def delete_remained_csv_true(part):
+    for file in part[0]:
+        try:
+            # the absolute path of the file
+            source = absolute_and_join(part[1], file)
+            # delete it
+            os.remove(source)
+            # a little msg to be sure that all things go well
+            print("Done ! Deleting the file  : " + file + " ....... DONE ! ")
+        except:
+            print("ERROR IN delete_remained_csv function")
 def delete_remained_csv(Database_directory):
     """
     Delete All The Files in the DataBase Directory ( Be AWARE when you use this function ,
@@ -403,29 +436,33 @@ def delete_remained_csv(Database_directory):
     """
     # The list of files name in the directory of Database
     DataBase = os.listdir(os.path.abspath(Database_directory))
+    if len(DataBase)!=0:
+        # loop in the list of files names
+        chunkse = [DataBase[x:x + 50] for x in range(0, len(DataBase), 50)]
+        part = []
+        for s in range(len(chunkse)):
+            part.append([chunkse[s], Database_directory])
+        pool_function(delete_remained_csv_true,part)
 
-    # loop in the list of files names
-    for file in DataBase:
-        try:
-            # the absolute path of the file
-            source = absolute_and_join(Database_directory, file)
-            # delete it
-            os.remove(source)
-            # a little msg to be sure that all things go well
-            print("Done ! Deleting the file  : " + file + " ....... DONE ! ")
-        except:
-            print("ERROR IN delete_remained_csv function")
-
-    # indicate the end of the operations and showing the number of the files that was removed
-    print('Done ! ' + str(len(DataBase)) + ' Removed dump list ! \n\n')
-    # time to read the image
-    time.sleep(3)
 
 
 # ===============================
 # Delete Duplicated lines in all CSVs in the Country_Directory Folder
 # ===============================
-
+def delete_duplication_true(part):
+    try:
+        if (part[2] in part[0]):
+            for filename in [f for f in part[1] if f.endswith(".csv")]:
+                # source file
+                source = os.path.join(part[0], filename)
+                # read csv file with pandas
+                df = pandas.read_csv(source, sep=",")
+                # remove duplicated rows with pandas
+                df.drop_duplicates(subset=None, inplace=True)
+                # replace the old one with this one
+                df.to_csv(source, index=False)
+    except:
+        print("ERROR IN delete_duplication function")
 def delete_duplication(Country_Directory: str):
     """
     Delete All Duplicated lines in all CSVs in the Country_Directory Folder
@@ -434,25 +471,17 @@ def delete_duplication(Country_Directory: str):
     """
     # walk through all directory ( return sufficient information about
     # all folders and sub-folders that exist in a specific directory )
-    for dirpath, dirnames, filenames in os.walk("."):
+    dirpaths = []
+    filesnames = []
+    for dirpath, dirnames, filenames  in os.walk("."):
         # when it found a sub-folder of the folder Country_Directory, do that :
-        try :
-            if (Country_Directory in dirpath):
-                # find all csv in that folder and do a loop in to them
-                for filename in [f for f in filenames if f.endswith(".csv")]:
-                    # source file
-                    source = os.path.join(dirpath, filename)
-                    # read csv file with pandas
-                    df = pandas.read_csv(source, sep=",")
-                    # remove duplicated rows with pandas
-                    df.drop_duplicates(subset=None, inplace=True)
-                    # replace the old one with this one
-                    df.to_csv(source, index=False)
-                print(
-                    "Deleting All duplications in file : " + dirpath.replace(Country_Directory, "")[
-                                                             3:] + " ....... DONE ! ")
-        except:
-            print("ERROR IN delete_duplication function")
+        dirpaths.append(dirpath)
+        filesnames.append(filenames)
+        # find all csv in that folder and do a loop in to them
+    part = []
+    for s in range(len(dirpaths)):
+        part.append([dirpaths[s],filesnames[s],Country_Directory])
+    pool_function(delete_duplication_true, part)
 
 # ===============================
 # Class To Extract The Csv(s) from text combolist file(s)
@@ -463,7 +492,7 @@ class ComboDecrypter:
     The Original files are always conserved in a specific folder ( Originals )
     """
 
-    def __init__(self, input_folder="input", folder_list_originals="Originals", output_folder="output"):
+    def __init__(self, input_folder="input", folder_list_originals="Originals", output_folder="Output"):
         """
         Separate the combolists to many csv files , these csv files are named after their ISPs .
         The Original files are always conserved in a separate folder ( Originals )
@@ -550,13 +579,13 @@ class Organize_Clean:
     Class To Organize Csv files by Country and clean it after that ( deleting the rest + deleting all duplicated rows )
     """
 
-    def __init__(self, input_directory: str = "input", output_directory: str = "output/Databases",
+    def __init__(self, input_directory: str = "input", output_directory: str = "Output/Databases",
                  Country_directory: str = "Output\\ByCountry"):
         """
         Class To Organize Csv files by Country and clean it after that ( deleting the rest + deleting all duplicated rows )
         :param input_directory: the input folder
         :param output_directory: the output folder
-        :param ByCountry_Directory: the ouput folder where the final result gonna be
+        :param Country_directory: the ouput folder where the final result gonna be
         """
 
         # ===============================
@@ -601,5 +630,4 @@ class Organize_Clean:
 
 
 if __name__ == "__main__":
-    ComboDecrypter()
     Organize_Clean()
